@@ -12,6 +12,8 @@ namespace Ams
         public DbSet<AttendanceLog> AttendanceLogs { get; set; }
         public DbSet<LeaveRequest> LeaveRequests { get; set; }
         public DbSet<Shift> Shifts { get; set; }
+        public DbSet<Department> Departments { get; set; }
+        public DbSet<FlexyHourRequest> FlexyHourRequests { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -33,6 +35,12 @@ namespace Ams
                 .HasMany(u => u.LeaveRequests)
                 .WithOne(l => l.User)
                 .HasForeignKey(l => l.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<User>()
+                .HasMany(u => u.FlexyHourRequests)
+                .WithOne(f => f.User)
+                .HasForeignKey(f => f.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
         }
     }

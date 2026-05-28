@@ -51,6 +51,21 @@ namespace Ams.Controllers
             public int? ShiftId { get; set; }
         }
 
+        public class UpdateProfileRequest
+        {
+            [JsonPropertyName("userId")]
+            public int UserId { get; set; }
+
+            [JsonPropertyName("avatarUrl")]
+            public string AvatarUrl { get; set; } = string.Empty;
+
+            [JsonPropertyName("oldPassword")]
+            public string OldPassword { get; set; } = string.Empty;
+
+            [JsonPropertyName("newPassword")]
+            public string NewPassword { get; set; } = string.Empty;
+        }
+
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
@@ -138,19 +153,22 @@ namespace Ams.Controllers
             {
                 int totalEmployees = await _context.Users.CountAsync();
                 
+                var allDepts = await _context.Departments.ToListAsync();
+                var dynamicDeptStats = new List<object>();
+                foreach (var d in allDepts)
+                {
+                    int deptCount = await _context.Users.CountAsync(u => u.Department == d.Name);
+                    // Use a mock attendance rate for now, or calculate if needed
+                    dynamicDeptStats.Add(new { name = d.Name, count = deptCount, attendance = "96.0%" });
+                }
+
                 specializedStats = new
                 {
                     totalEmployees = totalEmployees,
                     activeShifts = 3,
                     avgWorkingHours = 8.2,
                     overallAttendanceRate = 96.5,
-                    departmentStats = new[]
-                    {
-                        new { name = "Engineering", count = await _context.Users.CountAsync(u => u.Department == "Engineering"), attendance = "97.2%" },
-                        new { name = "Marketing", count = await _context.Users.CountAsync(u => u.Department == "Marketing"), attendance = "95.8%" },
-                        new { name = "Sales", count = await _context.Users.CountAsync(u => u.Department == "Sales"), attendance = "94.5%" },
-                        new { name = "HR & Ops", count = await _context.Users.CountAsync(u => u.Department == "HR & Administration"), attendance = "98.5%" }
-                    },
+                    departmentStats = dynamicDeptStats,
                     systemAlerts = new[]
                     {
                         new { id = 1, type = "warning", message = "High absence rate in Sales department today.", time = "10:00 AM" },
@@ -224,6 +242,39 @@ namespace Ams.Controllers
         public IActionResult Health()
         {
             return Ok(new { status = "ok", service = "Employee Attendance System SQL Server API" });
+        }
+
+        [HttpPost("update-profile")]
+        public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequest request)
+        {
+            var user = await _context.Users.FindAsync(request.UserId);
+            if (user == null)
+            {
+                return NotFound(new { error = "User not found." });
+            }
+
+            // Update Avatar if provided
+            if (!string.IsNullOrWhiteSpace(request.AvatarUrl))
+            {
+                user.Avatar = request.AvatarUrl.Trim();
+            }
+
+            // Update Password if old and new are provided
+            if (!string.IsNullOrWhiteSpace(request.NewPassword))
+            {
+                if (user.Password != request.OldPassword)
+                {
+                    return BadRequest(new { error = "Incorrect old password." });
+                }
+                user.Password = request.NewPassword;
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new { 
+                message = "Profile updated successfully!", 
+                avatar = user.Avatar 
+            });
         }
     }
 }
