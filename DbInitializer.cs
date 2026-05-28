@@ -1,4 +1,5 @@
 using System.Linq;
+using Microsoft.EntityFrameworkCore;
 
 namespace Ams
 {
@@ -6,6 +7,47 @@ namespace Ams
     {
         public static void Initialize(AppDbContext context)
         {
+            // Initialize Departments if table missing or empty
+            context.Database.ExecuteSqlRaw(@"
+                IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Departments' and xtype='U')
+                BEGIN
+                    CREATE TABLE Departments (
+                        Id INT IDENTITY(1,1) PRIMARY KEY,
+                        Name NVARCHAR(100) NOT NULL
+                    )
+                END
+                
+                -- Sync missing departments from Users
+                IF EXISTS (SELECT * FROM sysobjects WHERE name='Users' and xtype='U')
+                BEGIN
+                    INSERT INTO Departments (Name)
+                    SELECT DISTINCT Department FROM Users
+                    WHERE Department NOT IN (SELECT Name FROM Departments)
+                END
+
+                -- Clean up unused old default departments
+                DELETE FROM Departments 
+                WHERE Name IN ('Marketing', 'Sales', 'HR & Ops')
+                AND Name NOT IN (SELECT DISTINCT Department FROM Users)
+            ");
+
+            // Initialize FlexyHourRequests if table missing
+            context.Database.ExecuteSqlRaw(@"
+                IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='FlexyHourRequests' and xtype='U')
+                BEGIN
+                    CREATE TABLE FlexyHourRequests (
+                        Id INT IDENTITY(1,1) PRIMARY KEY,
+                        UserId INT NOT NULL,
+                        Date NVARCHAR(50) NOT NULL,
+                        Type NVARCHAR(50) NOT NULL,
+                        HoursRequested INT NOT NULL,
+                        Reason NVARCHAR(MAX) NULL,
+                        Status NVARCHAR(50) NOT NULL DEFAULT 'Pending',
+                        FOREIGN KEY (UserId) REFERENCES Users(Id) ON DELETE CASCADE
+                    )
+                END
+            ");
+
             // Seed Shifts
             if (!context.Shifts.Any())
             {

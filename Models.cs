@@ -48,6 +48,9 @@ namespace Ams
 
         [JsonIgnore]
         public List<LeaveRequest> LeaveRequests { get; set; } = new List<LeaveRequest>();
+
+        [JsonIgnore]
+        public List<FlexyHourRequest> FlexyHourRequests { get; set; } = new List<FlexyHourRequest>();
     }
 
     public class Shift
@@ -150,6 +153,47 @@ namespace Ams
         [Required]
         [MaxLength(100)]
         public string Duration { get; set; } = string.Empty;
+
+        public string Reason { get; set; } = string.Empty;
+
+        [Required]
+        [MaxLength(50)]
+        public string Status { get; set; } = "Pending";
+    }
+
+    public class Department
+    {
+        [Key]
+        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+        public int Id { get; set; }
+
+        [Required]
+        [MaxLength(100)]
+        public string Name { get; set; } = string.Empty;
+    }
+
+    public class FlexyHourRequest
+    {
+        [Key]
+        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+        public int Id { get; set; }
+
+        [Required]
+        public int UserId { get; set; }
+
+        [ForeignKey("UserId")]
+        [JsonIgnore]
+        public User? User { get; set; }
+
+        [Required]
+        [MaxLength(50)]
+        public string Date { get; set; } = string.Empty; // e.g. "yyyy-MM-dd"
+
+        [Required]
+        [MaxLength(50)]
+        public string Type { get; set; } = string.Empty; // "Morning Flexy" or "Evening Flexy"
+
+        public int HoursRequested { get; set; } = 0;
 
         public string Reason { get; set; } = string.Empty;
 
