@@ -1,0 +1,24 @@
+<p style="font-size: 1.1rem; margin-top: 0;">Hello <strong>{{EmployeeName}}</strong>,</p>
+<p>Your leave request has been <strong style="color: {{StatusColor}};">{{Status}}</strong> by <strong>{{ApproverName}}</strong>.</p>
+
+<table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 0.95rem;">
+  <tr style="border-bottom: 1px solid #eee;">
+    <td style="padding: 8px 0; color: #666; width: 35%;">Leave Type:</td>
+    <td style="padding: 8px 0; font-weight: bold;">{{LeaveType}}</td>
+  </tr>
+  <tr style="border-bottom: 1px solid #eee;">
+    <td style="padding: 8px 0; color: #666;">Duration:</td>
+    <td style="padding: 8px 0; font-weight: bold;">{{StartDate}} to {{EndDate}}</td>
+  </tr>
+  <tr style="border-bottom: 1px solid #eee;">
+    <td style="padding: 8px 0; color: #666;">Decision:</td>
+    <td style="padding: 8px 0; font-weight: bold; color: {{StatusColor}};">{{Status}}</td>
+  </tr>
+  <tr style="border-bottom: 1px solid #eee;">
+    <td style="padding: 8px 0; color: #666;">Remarks:</td>
+    <td style="padding: 8px 0;">{{Remarks}}</td>
+  </tr>
+</table>
+
+<p>If you have any questions, please contact your manager or HR department.</p>
+<p style="color: #666; font-size: 0.9rem;">Decided on: {{DecisionDate}}</p>

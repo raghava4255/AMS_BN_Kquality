@@ -22,21 +22,28 @@ namespace Ams.Controllers
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Department>>> GetDepartments()
         {
-            return await _context.Departments.ToListAsync();
+            return await _context.Departments.AsNoTracking().ToListAsync();
         }
 
-        // GET: api/Departments/stats
         [HttpGet("stats")]
         public async Task<IActionResult> GetDepartmentStats()
         {
-            var allDepts = await _context.Departments.ToListAsync();
-            var dynamicDeptStats = new List<object>();
-            foreach (var d in allDepts)
-            {
-                int deptCount = await _context.Users.CountAsync(u => u.Department == d.Name);
-                // Use a mock attendance rate for now
-                dynamicDeptStats.Add(new { name = d.Name, count = deptCount, attendance = "96.0%" });
-            }
+            var deptStatsRaw = await _context.Users
+                .Where(u => u.Department != null && u.Department != "")
+                .GroupBy(u => u.Department)
+                .Select(g => new {
+                    Name = g.Key,
+                    Count = g.Count(),
+                    AvgAtt = g.Average(u => (double?)u.AttendanceRate) ?? 0
+                })
+                .ToListAsync();
+
+            var dynamicDeptStats = deptStatsRaw.Select(d => new {
+                name = d.Name,
+                count = d.Count,
+                attendance = $"{Math.Round(d.AvgAtt, 1)}%"
+            }).ToList();
+
             return Ok(dynamicDeptStats);
         }
 
@@ -55,7 +62,6 @@ namespace Ams.Controllers
             return CreatedAtAction(nameof(GetDepartments), new { id = department.Id }, department);
         }
 
-        // DELETE: api/Departments/5
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteDepartment(int id)
         {
@@ -63,6 +69,13 @@ namespace Ams.Controllers
             if (department == null)
             {
                 return NotFound(new { error = "Department not found" });
+            }
+
+            // Remove this department from all users who have it
+            var usersInDept = await _context.Users.Where(u => u.Department == department.Name).ToListAsync();
+            foreach(var user in usersInDept)
+            {
+                user.Department = "Unassigned";
             }
 
             _context.Departments.Remove(department);

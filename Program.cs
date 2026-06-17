@@ -9,6 +9,14 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 // Add services to the container.
 builder.Services.AddControllers();
+
+// Register Custom Services
+builder.Services.AddScoped<Ams.Services.IEmailService, Ams.Services.EmailService>();
+builder.Services.AddTransient<Ams.Services.ImapEmailService>();
+builder.Services.AddHostedService<Ams.Services.EmailRetryService>();
+builder.Services.AddHostedService<Ams.Services.AutomatedReportsService>();
+builder.Services.AddHostedService<Ams.Services.EmailPollingBackgroundService>();
+builder.Services.AddHostedService<Ams.Services.NotificationEmailSenderService>();
 // Configure CORS policy
 builder.Services.AddCors(options =>
 {

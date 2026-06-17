@@ -7,6 +7,50 @@ namespace Ams
     {
         public static void Initialize(AppDbContext context)
         {
+            // Add IsActive to Users table if missing
+            context.Database.ExecuteSqlRaw(@"
+                IF EXISTS (SELECT * FROM sysobjects WHERE name='Users' and xtype='U')
+                AND NOT EXISTS (SELECT * FROM sys.columns WHERE Name = N'IsActive' AND Object_ID = Object_ID(N'Users'))
+                BEGIN
+                    ALTER TABLE Users ADD IsActive BIT NOT NULL DEFAULT 1
+                END
+            ");
+
+            // Add EmployeeId to Users table if missing
+            context.Database.ExecuteSqlRaw(@"
+                IF EXISTS (SELECT * FROM sysobjects WHERE name='Users' and xtype='U')
+                AND NOT EXISTS (SELECT * FROM sys.columns WHERE Name = N'EmployeeId' AND Object_ID = Object_ID(N'Users'))
+                BEGIN
+                    ALTER TABLE Users ADD EmployeeId NVARCHAR(100) NOT NULL DEFAULT '';
+                END
+            ");
+
+            // Seed initial EmployeeIds for already existing users who have empty EmployeeId
+            context.Database.ExecuteSqlRaw(@"
+                UPDATE Users SET EmployeeId = 'EMP-001' WHERE Email = 'employee@company.com' AND (EmployeeId = '' OR EmployeeId IS NULL);
+                UPDATE Users SET EmployeeId = 'MGR-001' WHERE Email = 'manager@company.com' AND (EmployeeId = '' OR EmployeeId IS NULL);
+                UPDATE Users SET EmployeeId = 'ADM-001' WHERE Email = 'admin@company.com' AND (EmployeeId = '' OR EmployeeId IS NULL);
+            ");
+
+            // Add Location fields to AttendanceLogs table if missing
+            context.Database.ExecuteSqlRaw(@"
+                IF EXISTS (SELECT * FROM sysobjects WHERE name='AttendanceLogs' and xtype='U')
+                BEGIN
+                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE Name = N'ClockInLat' AND Object_ID = Object_ID(N'AttendanceLogs'))
+                        ALTER TABLE AttendanceLogs ADD ClockInLat FLOAT NULL;
+                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE Name = N'ClockInLng' AND Object_ID = Object_ID(N'AttendanceLogs'))
+                        ALTER TABLE AttendanceLogs ADD ClockInLng FLOAT NULL;
+                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE Name = N'ClockInAddress' AND Object_ID = Object_ID(N'AttendanceLogs'))
+                        ALTER TABLE AttendanceLogs ADD ClockInAddress NVARCHAR(MAX) NULL;
+                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE Name = N'ClockOutLat' AND Object_ID = Object_ID(N'AttendanceLogs'))
+                        ALTER TABLE AttendanceLogs ADD ClockOutLat FLOAT NULL;
+                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE Name = N'ClockOutLng' AND Object_ID = Object_ID(N'AttendanceLogs'))
+                        ALTER TABLE AttendanceLogs ADD ClockOutLng FLOAT NULL;
+                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE Name = N'ClockOutAddress' AND Object_ID = Object_ID(N'AttendanceLogs'))
+                        ALTER TABLE AttendanceLogs ADD ClockOutAddress NVARCHAR(MAX) NULL;
+                END
+            ");
+
             // Initialize Departments if table missing or empty
             context.Database.ExecuteSqlRaw(@"
                 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Departments' and xtype='U')
@@ -48,6 +92,108 @@ namespace Ams
                 END
             ");
 
+            // Initialize ShiftRequests if table missing
+            context.Database.ExecuteSqlRaw(@"
+                IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='ShiftRequests' and xtype='U')
+                BEGIN
+                    CREATE TABLE ShiftRequests (
+                        Id INT IDENTITY(1,1) PRIMARY KEY,
+                        UserId INT NOT NULL,
+                        RequestedShiftId INT NOT NULL,
+                        Reason NVARCHAR(MAX) NULL,
+                        Status NVARCHAR(50) NOT NULL DEFAULT 'Pending',
+                        FOREIGN KEY (UserId) REFERENCES Users(Id) ON DELETE CASCADE,
+                        FOREIGN KEY (RequestedShiftId) REFERENCES Shifts(Id)
+                    )
+                END
+            ");
+
+            // Initialize Otps if table missing
+            context.Database.ExecuteSqlRaw(@"
+                IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Otps' and xtype='U')
+                BEGIN
+                    CREATE TABLE Otps (
+                        Id INT IDENTITY(1,1) PRIMARY KEY,
+                        UserId INT NOT NULL,
+                        OtpCode NVARCHAR(10) NOT NULL,
+                        ExpiryTime DATETIME NOT NULL,
+                        IsUsed BIT NOT NULL DEFAULT 0,
+                        FOREIGN KEY (UserId) REFERENCES Users(Id) ON DELETE CASCADE
+                    )
+                END
+            ");
+
+            // Initialize PasswordHistories if table missing
+            context.Database.ExecuteSqlRaw(@"
+                IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='PasswordHistories' and xtype='U')
+                BEGIN
+                    CREATE TABLE PasswordHistories (
+                        Id INT IDENTITY(1,1) PRIMARY KEY,
+                        UserId INT NOT NULL,
+                        PasswordHash NVARCHAR(255) NOT NULL,
+                        CreatedAt DATETIME NOT NULL DEFAULT GETDATE(),
+                        FOREIGN KEY (UserId) REFERENCES Users(Id) ON DELETE CASCADE
+                    )
+                END
+            ");
+
+            // Initialize EmailLogs if table missing
+            context.Database.ExecuteSqlRaw(@"
+                IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='EmailLogs' and xtype='U')
+                BEGIN
+                    CREATE TABLE EmailLogs (
+                        Id INT IDENTITY(1,1) PRIMARY KEY,
+                        RecipientEmail NVARCHAR(255) NOT NULL,
+                        Subject NVARCHAR(255) NOT NULL,
+                        Body NVARCHAR(MAX) NOT NULL,
+                        Status NVARCHAR(50) NOT NULL DEFAULT 'Pending',
+                        SentAt DATETIME NOT NULL DEFAULT GETDATE(),
+                        ErrorMessage NVARCHAR(MAX) NULL,
+                        RetryCount INT NOT NULL DEFAULT 0
+                    )
+                END
+            ");
+
+            // Initialize Notifications if table missing
+            context.Database.ExecuteSqlRaw(@"
+                IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Notifications' and xtype='U')
+                BEGIN
+                    CREATE TABLE Notifications (
+                        Id INT IDENTITY(1,1) PRIMARY KEY,
+                        UserId INT NOT NULL,
+                        Title NVARCHAR(255) NOT NULL,
+                        Message NVARCHAR(MAX) NOT NULL,
+                        Type NVARCHAR(50) NOT NULL DEFAULT 'info',
+                        CreatedAt DATETIME NOT NULL DEFAULT GETDATE(),
+                        IsRead BIT NOT NULL DEFAULT 0,
+                        FOREIGN KEY (UserId) REFERENCES Users(Id) ON DELETE CASCADE
+                    )
+                END
+            ");
+
+            // Initialize LeaveTypes if table missing
+            context.Database.ExecuteSqlRaw(@"
+                IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='LeaveTypes' and xtype='U')
+                BEGIN
+                    CREATE TABLE LeaveTypes (
+                        Id INT IDENTITY(1,1) PRIMARY KEY,
+                        Name NVARCHAR(100) NOT NULL
+                    )
+                END
+            ");
+
+            // Seed default LeaveTypes if empty
+            if (!context.LeaveTypes.Any())
+            {
+                context.LeaveTypes.AddRange(
+                    new LeaveType { Name = "Sick Leave" },
+                    new LeaveType { Name = "Casual Leave" },
+                    new LeaveType { Name = "Earned Leave" },
+                    new LeaveType { Name = "Maternity Leave" }
+                );
+                context.SaveChanges();
+            }
+
             // Seed Shifts
             if (!context.Shifts.Any())
             {
@@ -77,7 +223,8 @@ namespace Ams
                     LeaveBalance = 5,
                     WorkHoursThisMonth = 144,
                     AttendanceRate = 90,
-                    ShiftId = generalShift?.Id
+                    ShiftId = generalShift?.Id,
+                    EmployeeId = "EMP-001"
                 };
 
                 var manager = new User
@@ -93,7 +240,8 @@ namespace Ams
                     LeaveBalance = 8,
                     WorkHoursThisMonth = 160,
                     AttendanceRate = 100,
-                    ShiftId = generalShift?.Id
+                    ShiftId = generalShift?.Id,
+                    EmployeeId = "MGR-001"
                 };
 
                 var admin = new User
@@ -109,7 +257,8 @@ namespace Ams
                     LeaveBalance = 10,
                     WorkHoursThisMonth = 160,
                     AttendanceRate = 100,
-                    ShiftId = generalShift?.Id
+                    ShiftId = generalShift?.Id,
+                    EmployeeId = "ADM-001"
                 };
 
                 context.Users.AddRange(employee, manager, admin);
@@ -117,11 +266,11 @@ namespace Ams
 
                 // Seed logs for Employee
                 context.AttendanceLogs.AddRange(
-                    new AttendanceLog { UserId = employee.Id, Date = "2026-05-20", ClockIn = "09:02 AM", ClockOut = "06:05 PM", Status = "Present", Hours = 9.0 },
-                    new AttendanceLog { UserId = employee.Id, Date = "2026-05-19", ClockIn = "08:55 AM", ClockOut = "05:45 PM", Status = "Present", Hours = 8.8 },
-                    new AttendanceLog { UserId = employee.Id, Date = "2026-05-18", ClockIn = "09:15 AM", ClockOut = "06:10 PM", Status = "Present", Hours = 8.9 },
+                    new AttendanceLog { UserId = employee.Id, Date = "2026-05-20", ClockIn = "09:02", ClockOut = "18:05", Status = "Present", Hours = 9.0, ClockInLat = 17.5314223, ClockInLng = 78.3951969, ClockInAddress = "ALEAP, Pragathi Nagar, Bachupally mandal, Greater Hyderabad Municipal Corporation North Zone, Hyderabad, Medchal-Malkajgiri, Telangana, 501002, India", ClockOutLat = 17.5314223, ClockOutLng = 78.3951969, ClockOutAddress = "ALEAP, Pragathi Nagar, Bachupally mandal, Greater Hyderabad Municipal Corporation North Zone, Hyderabad, Medchal-Malkajgiri, Telangana, 501002, India" },
+                    new AttendanceLog { UserId = employee.Id, Date = "2026-05-19", ClockIn = "08:55", ClockOut = "17:45", Status = "Present", Hours = 8.8, ClockInLat = 17.5314223, ClockInLng = 78.3951969, ClockInAddress = "ALEAP, Pragathi Nagar, Bachupally mandal, Greater Hyderabad Municipal Corporation North Zone, Hyderabad, Medchal-Malkajgiri, Telangana, 501002, India", ClockOutLat = 17.5314223, ClockOutLng = 78.3951969, ClockOutAddress = "ALEAP, Pragathi Nagar, Bachupally mandal, Greater Hyderabad Municipal Corporation North Zone, Hyderabad, Medchal-Malkajgiri, Telangana, 501002, India" },
+                    new AttendanceLog { UserId = employee.Id, Date = "2026-05-18", ClockIn = "09:15", ClockOut = "18:10", Status = "Present", Hours = 8.9, ClockInLat = 17.5314223, ClockInLng = 78.3951969, ClockInAddress = "ALEAP, Pragathi Nagar, Bachupally mandal, Greater Hyderabad Municipal Corporation North Zone, Hyderabad, Medchal-Malkajgiri, Telangana, 501002, India", ClockOutLat = 17.5314223, ClockOutLng = 78.3951969, ClockOutAddress = "ALEAP, Pragathi Nagar, Bachupally mandal, Greater Hyderabad Municipal Corporation North Zone, Hyderabad, Medchal-Malkajgiri, Telangana, 501002, India" },
                     new AttendanceLog { UserId = employee.Id, Date = "2026-05-17", ClockIn = "---", ClockOut = "---", Status = "On Leave", Hours = 0.0 },
-                    new AttendanceLog { UserId = employee.Id, Date = "2026-05-16", ClockIn = "08:58 AM", ClockOut = "05:30 PM", Status = "Present", Hours = 8.5 }
+                    new AttendanceLog { UserId = employee.Id, Date = "2026-05-16", ClockIn = "08:58", ClockOut = "17:30", Status = "Present", Hours = 8.5, ClockInLat = 17.5314223, ClockInLng = 78.3951969, ClockInAddress = "ALEAP, Pragathi Nagar, Bachupally mandal, Greater Hyderabad Municipal Corporation North Zone, Hyderabad, Medchal-Malkajgiri, Telangana, 501002, India", ClockOutLat = 17.5314223, ClockOutLng = 78.3951969, ClockOutAddress = "ALEAP, Pragathi Nagar, Bachupally mandal, Greater Hyderabad Municipal Corporation North Zone, Hyderabad, Medchal-Malkajgiri, Telangana, 501002, India" }
                 );
 
                 // Seed leave requests for Manager's inbox
@@ -132,6 +281,19 @@ namespace Ams
 
                 context.SaveChanges();
             }
+
+            // Sync password history for existing users who do not have any history
+            var usersWithoutHistory = context.Users.Where(u => !context.PasswordHistories.Any(ph => ph.UserId == u.Id)).ToList();
+            if (usersWithoutHistory.Any())
+            {
+                foreach (var u in usersWithoutHistory)
+                {
+                    context.PasswordHistories.Add(new PasswordHistory { UserId = u.Id, PasswordHash = u.Password, CreatedAt = System.DateTime.Now });
+                }
+                context.SaveChanges();
+            }
+
+
         }
     }
 }

@@ -20,7 +20,7 @@ namespace Ams
         public string Password { get; set; } = string.Empty;
 
         [Required]
-        [MaxLength(50)]
+        [MaxLength(100)]
         public string Role { get; set; } = string.Empty;
 
         [Required]
@@ -39,6 +39,15 @@ namespace Ams
         public double AttendanceRate { get; set; } = 100.0;
 
         public int? ShiftId { get; set; }
+        public bool IsActive { get; set; } = true;
+
+        [MaxLength(100)]
+        public string EmployeeId { get; set; } = string.Empty;
+
+        // Geofencing constraints
+        public double? AllowedLat { get; set; }
+        public double? AllowedLng { get; set; }
+        public double AllowedRadius { get; set; } = 500.0; // Default 500 meters
 
         [ForeignKey("ShiftId")]
         public Shift? Shift { get; set; }
@@ -119,6 +128,14 @@ namespace Ams
         [MaxLength(50)]
         public string Status { get; set; } = string.Empty;
 
+        public double? ClockInLat { get; set; }
+        public double? ClockInLng { get; set; }
+        public string? ClockInAddress { get; set; }
+
+        public double? ClockOutLat { get; set; }
+        public double? ClockOutLng { get; set; }
+        public string? ClockOutAddress { get; set; }
+
         public double Hours { get; set; } = 0;
 
         // Shift calculations
@@ -159,7 +176,26 @@ namespace Ams
         [Required]
         [MaxLength(50)]
         public string Status { get; set; } = "Pending";
+        // Overall status: "Pending" | "Pending HR Approval" | "Approved" | "Rejected"
+
+        // Stage 1: Team Lead (Manager) approval
+        [MaxLength(50)]
+        public string TlApprovalStatus { get; set; } = "Pending";
+        // "Pending" | "Approved" | "Rejected"
+
+        public string TlApproverSignature { get; set; } = string.Empty;
+
+        // Stage 2: HR (Admin) approval
+        [MaxLength(50)]
+        public string HrApprovalStatus { get; set; } = "Pending";
+        // "Pending" | "Approved" | "Rejected"
+
+        public string HrApproverSignature { get; set; } = string.Empty;
+
+        // Legacy field kept for backward compatibility
+        public string ApproverSignature { get; set; } = string.Empty;
     }
+
 
     public class Department
     {
@@ -200,5 +236,201 @@ namespace Ams
         [Required]
         [MaxLength(50)]
         public string Status { get; set; } = "Pending";
+
+        public string ApproverSignature { get; set; } = string.Empty;
+
+        // Stage 1: Team Lead (Manager) approval
+        [MaxLength(50)]
+        public string TlApprovalStatus { get; set; } = "Pending";
+        public string TlApproverSignature { get; set; } = string.Empty;
+
+        // Stage 2: HR (Admin) approval
+        [MaxLength(50)]
+        public string HrApprovalStatus { get; set; } = "Pending";
+        public string HrApproverSignature { get; set; } = string.Empty;
+    }
+
+    public class Otp
+    {
+        [Key]
+        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+        public int Id { get; set; }
+
+        [Required]
+        public int UserId { get; set; }
+
+        [ForeignKey("UserId")]
+        [JsonIgnore]
+        public User? User { get; set; }
+
+        [Required]
+        [MaxLength(10)]
+        public string OtpCode { get; set; } = string.Empty;
+
+        [Required]
+        public System.DateTime ExpiryTime { get; set; }
+
+        public bool IsUsed { get; set; } = false;
+    }
+
+    public class PasswordHistory
+    {
+        [Key]
+        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+        public int Id { get; set; }
+
+        [Required]
+        public int UserId { get; set; }
+
+        [ForeignKey("UserId")]
+        [JsonIgnore]
+        public User? User { get; set; }
+
+        [Required]
+        [MaxLength(255)]
+        public string PasswordHash { get; set; } = string.Empty;
+
+        public System.DateTime CreatedAt { get; set; } = System.DateTime.Now;
+    }
+
+    public class EmailLog
+    {
+        [Key]
+        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+        public int Id { get; set; }
+
+        [Required]
+        [MaxLength(255)]
+        public string RecipientEmail { get; set; } = string.Empty;
+
+        [Required]
+        [MaxLength(255)]
+        public string Subject { get; set; } = string.Empty;
+
+        [Required]
+        public string Body { get; set; } = string.Empty;
+
+        [Required]
+        [MaxLength(50)]
+        public string Status { get; set; } = "Pending";
+
+        public System.DateTime SentAt { get; set; } = System.DateTime.Now;
+
+        public string ErrorMessage { get; set; } = string.Empty;
+
+        public int RetryCount { get; set; } = 0;
+    }
+
+    public class Notification
+    {
+        [Key]
+        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+        public int Id { get; set; }
+
+        [Required]
+        public int UserId { get; set; }
+
+        [ForeignKey("UserId")]
+        [JsonIgnore]
+        public User? User { get; set; }
+
+        [Required]
+        [MaxLength(255)]
+        public string Title { get; set; } = string.Empty;
+
+        [Required]
+        public string Message { get; set; } = string.Empty;
+
+        [Required]
+        [MaxLength(50)]
+        public string Type { get; set; } = "info"; // "info", "success", "warning", "danger"
+
+        public System.DateTime CreatedAt { get; set; } = System.DateTime.Now;
+
+        public bool IsRead { get; set; } = false;
+
+        public bool IsEmailSent { get; set; } = false;
+    }
+
+    public class ShiftRequest
+    {
+        [Key]
+        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+        public int Id { get; set; }
+
+        [Required]
+        public int UserId { get; set; }
+
+        [ForeignKey("UserId")]
+        [JsonIgnore]
+        public User? User { get; set; }
+
+        [Required]
+        public int RequestedShiftId { get; set; }
+
+        [ForeignKey("RequestedShiftId")]
+        public Shift? RequestedShift { get; set; }
+
+        public string Reason { get; set; } = string.Empty;
+
+        [Required]
+        [MaxLength(50)]
+        public string Status { get; set; } = "Pending"; // Pending, Approved, Rejected
+
+        public string ApproverSignature { get; set; } = string.Empty;
+
+        // Stage 1: Team Lead (Manager) approval
+        [MaxLength(50)]
+        public string TlApprovalStatus { get; set; } = "Pending";
+        public string TlApproverSignature { get; set; } = string.Empty;
+
+        // Stage 2: HR (Admin) approval
+        [MaxLength(50)]
+        public string HrApprovalStatus { get; set; } = "Pending";
+        public string HrApproverSignature { get; set; } = string.Empty;
+    }
+
+    public class LeaveType
+    {
+        [Key]
+        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+        public int Id { get; set; }
+
+        [Required]
+        [MaxLength(100)]
+        public string Name { get; set; } = string.Empty;
+    }
+
+    public class IncomingEmail
+    {
+        [Key]
+        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+        public int Id { get; set; }
+
+        [Required]
+        [MaxLength(255)]
+        public string MessageId { get; set; } = string.Empty;
+
+        [Required]
+        [MaxLength(255)]
+        public string SenderAddress { get; set; } = string.Empty;
+
+        [MaxLength(255)]
+        public string SenderName { get; set; } = string.Empty;
+
+        [Required]
+        [MaxLength(500)]
+        public string Subject { get; set; } = string.Empty;
+
+        public string BodyText { get; set; } = string.Empty;
+        
+        public string BodyHtml { get; set; } = string.Empty;
+
+        public System.DateTime ReceivedDate { get; set; }
+
+        public bool IsProcessed { get; set; } = false;
+        
+        public System.DateTime CreatedAt { get; set; } = System.DateTime.Now;
     }
 }
+
