@@ -72,7 +72,7 @@ namespace Ams.Services
             // 1. Missing Punches
             var missingPunches = await db.AttendanceLogs
                 .Include(l => l.User)
-                .Where(l => l.Date == today && (l.Status == "Active" || l.ClockOut == "---"))
+                .Where(l => l.Date == today && l.Status == "Active")
                 .ToListAsync();
 
             foreach (var log in missingPunches)

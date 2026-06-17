@@ -229,6 +229,8 @@ namespace Ams.Controllers
             string notificationMessage = string.Empty;
             string notificationColor = string.Empty;
 
+            string signatureToUse = !string.IsNullOrWhiteSpace(request.Signature) ? request.Signature : approver.Name;
+
             // ── STAGE 1: Team Lead (Manager) approval ─────────────────────────────
             if (leave.Status == "Pending")
             {
@@ -258,20 +260,20 @@ namespace Ams.Controllers
 
                 bool isApproved = normalizedDecision == "approve";
                 leave.TlApprovalStatus = isApproved ? "Approved" : "Rejected";
-                leave.TlApproverSignature = approver.Name;
+                leave.TlApproverSignature = signatureToUse;
 
                 // Auto-approve HR step for casual/sick leaves if TL approves
                 if (isApproved && (leave.Type == "Casual Leave" || leave.Type == "Sick Leave"))
                 {
                     leave.HrApprovalStatus = "Approved";
                     leave.Status = "Approved";
-                    leave.ApproverSignature = approver.Name;
+                    leave.ApproverSignature = signatureToUse;
                 }
                 else if (isApproved)
                 {
                     // Move to Stage 2: awaiting HR
                     leave.Status = "Pending HR Approval";
-                    leave.ApproverSignature = approver.Name;
+                    leave.ApproverSignature = signatureToUse;
 
                     // Notify HR admins that this leave needs their approval
                     var hrAdmins = await _context.Users
@@ -298,7 +300,7 @@ namespace Ams.Controllers
                     // TL rejected — final rejection
                     leave.Status = "Rejected";
                     leave.HrApprovalStatus = "N/A";
-                    leave.ApproverSignature = approver.Name;
+                    leave.ApproverSignature = signatureToUse;
 
                     notificationTitle = "Leave Request Rejected";
                     notificationMessage = $"Your {leave.Type} request for {(leave.Duration ?? "").Split('|')[0]} was rejected by your Team Lead ({approver.Name}).";
@@ -315,12 +317,12 @@ namespace Ams.Controllers
 
                 bool isApproved = normalizedDecision == "approve";
                 leave.HrApprovalStatus = isApproved ? "Approved" : "Rejected";
-                leave.HrApproverSignature = approver.Name;
+                leave.HrApproverSignature = signatureToUse;
 
                 if (isApproved)
                 {
                     leave.Status = "Approved";
-                    leave.ApproverSignature = approver.Name;
+                    leave.ApproverSignature = signatureToUse;
 
                     // Deduct leave balance and create attendance logs
                     var employeeForLeave = await _context.Users.FindAsync(leave.UserId);
@@ -372,7 +374,7 @@ namespace Ams.Controllers
                 {
                     // HR rejected
                     leave.Status = "Rejected";
-                    leave.ApproverSignature = approver.Name;
+                    leave.ApproverSignature = signatureToUse;
 
                     notificationTitle = "Leave Request Rejected";
                     notificationMessage = $"Your {leave.Type} request for {(leave.Duration ?? "").Split('|')[0]} was rejected.";
