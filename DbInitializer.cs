@@ -137,6 +137,22 @@ namespace Ams
                 END
             ");
 
+            // Initialize PasswordPolicies if table missing
+            context.Database.ExecuteSqlRaw(@"
+                IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='PasswordPolicies' and xtype='U')
+                BEGIN
+                    CREATE TABLE PasswordPolicies (
+                        Id INT IDENTITY(1,1) PRIMARY KEY,
+                        MinLength INT NOT NULL DEFAULT 8,
+                        MaxLength INT NOT NULL DEFAULT 64,
+                        RequireUpper BIT NOT NULL DEFAULT 1,
+                        RequireLower BIT NOT NULL DEFAULT 1,
+                        RequireNumber BIT NOT NULL DEFAULT 1,
+                        RequireSpecial BIT NOT NULL DEFAULT 1
+                    )
+                END
+            ");
+
             // Initialize EmailLogs if table missing
             context.Database.ExecuteSqlRaw(@"
                 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='EmailLogs' and xtype='U')
@@ -191,6 +207,21 @@ namespace Ams
                     new LeaveType { Name = "Earned Leave" },
                     new LeaveType { Name = "Maternity Leave" }
                 );
+                context.SaveChanges();
+            }
+
+            // Seed default PasswordPolicy if empty
+            if (!context.PasswordPolicies.Any())
+            {
+                context.PasswordPolicies.Add(new PasswordPolicy
+                {
+                    MinLength = 8,
+                    MaxLength = 64,
+                    RequireUpper = true,
+                    RequireLower = true,
+                    RequireNumber = true,
+                    RequireSpecial = true
+                });
                 context.SaveChanges();
             }
 

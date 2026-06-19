@@ -432,5 +432,19 @@ namespace Ams
         
         public System.DateTime CreatedAt { get; set; } = System.DateTime.Now;
     }
+
+    public class PasswordPolicy
+    {
+        [Key]
+        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+        public int Id { get; set; }
+
+        public int MinLength { get; set; } = 8;
+        public int MaxLength { get; set; } = 64;
+        public bool RequireUpper { get; set; } = true;
+        public bool RequireLower { get; set; } = true;
+        public bool RequireNumber { get; set; } = true;
+        public bool RequireSpecial { get; set; } = true;
+    }
 }
 

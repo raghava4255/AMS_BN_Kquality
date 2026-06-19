@@ -331,6 +331,8 @@ namespace Ams.Controllers
                 };
             }
 
+            bool isFirstTime = await _context.PasswordHistories.CountAsync(ph => ph.UserId == user.Id) <= 1;
+
             return Ok(new
             {
                 message = "Login successful",
@@ -345,6 +347,7 @@ namespace Ams.Controllers
                     avatar = user.Avatar,
                     shift = user.Shift,
                     employeeId = user.EmployeeId,
+                    isFirstTime = isFirstTime,
                     stats = specializedStats
                 }
             });
@@ -361,6 +364,27 @@ namespace Ams.Controllers
             if (string.IsNullOrWhiteSpace(request.Password))
             {
                 return BadRequest(new { error = "A password must be set for each new account." });
+            }
+
+            // Password Policy check
+            var policy = await _context.PasswordPolicies.FirstOrDefaultAsync();
+            if (policy != null)
+            {
+                string pwd = request.Password;
+                if (pwd.Length < policy.MinLength || pwd.Length > policy.MaxLength ||
+                    (policy.RequireUpper && !pwd.Any(char.IsUpper)) ||
+                    (policy.RequireLower && !pwd.Any(char.IsLower)) ||
+                    (policy.RequireNumber && !pwd.Any(char.IsDigit)) ||
+                    (policy.RequireSpecial && !pwd.Any(ch => !char.IsLetterOrDigit(ch))))
+                {
+                    var requirements = new List<string>();
+                    requirements.Add($"between {policy.MinLength} and {policy.MaxLength} characters");
+                    if (policy.RequireUpper) requirements.Add("an uppercase letter");
+                    if (policy.RequireLower) requirements.Add("a lowercase letter");
+                    if (policy.RequireNumber) requirements.Add("a number");
+                    if (policy.RequireSpecial) requirements.Add("a special character");
+                    return BadRequest(new { error = $"Password does not meet criteria. It must be {string.Join(", ", requirements)}." });
+                }
             }
 
             if (string.IsNullOrWhiteSpace(request.EmployeeId))
@@ -470,6 +494,89 @@ namespace Ams.Controllers
             return Ok(new { status = "ok", service = "Employee Attendance System SQL Server API" });
         }
 
+        [HttpGet("roles")]
+        public IActionResult GetAvailableRoles()
+        {
+            var roles = new[]
+            {
+                new { value = "employee", label = "Employee" },
+                new { value = "manager", label = "Team Lead" },
+                new { value = "reporting manager", label = "Reporting Manager" },
+                new { value = "admin", label = "HR / Admin" }
+            };
+            return Ok(roles);
+        }
+
+        [HttpGet("/api/password-policy")]
+        public async Task<IActionResult> GetPasswordPolicy()
+        {
+            var policy = await _context.PasswordPolicies.FirstOrDefaultAsync();
+            if (policy == null)
+            {
+                policy = new PasswordPolicy();
+                _context.PasswordPolicies.Add(policy);
+                await _context.SaveChangesAsync();
+            }
+            return Ok(new
+            {
+                minLength = policy.MinLength,
+                maxLength = policy.MaxLength,
+                requireUpper = policy.RequireUpper,
+                requireLower = policy.RequireLower,
+                requireNumber = policy.RequireNumber,
+                requireSpecial = policy.RequireSpecial,
+                forbiddenSubstrings = new string[] { }
+            });
+        }
+
+        public class UpdatePasswordPolicyRequest
+        {
+            [JsonPropertyName("adminUserId")]
+            public int AdminUserId { get; set; }
+            [JsonPropertyName("minLength")]
+            public int MinLength { get; set; }
+            [JsonPropertyName("maxLength")]
+            public int MaxLength { get; set; }
+            [JsonPropertyName("requireUpper")]
+            public bool RequireUpper { get; set; }
+            [JsonPropertyName("requireLower")]
+            public bool RequireLower { get; set; }
+            [JsonPropertyName("requireNumber")]
+            public bool RequireNumber { get; set; }
+            [JsonPropertyName("requireSpecial")]
+            public bool RequireSpecial { get; set; }
+        }
+
+        [HttpPost("/api/password-policy")]
+        public async Task<IActionResult> UpdatePasswordPolicy([FromBody] UpdatePasswordPolicyRequest request)
+        {
+            if (request == null) return BadRequest(new { error = "Request body is empty." });
+
+            var admin = await _context.Users.FindAsync(request.AdminUserId);
+            if (admin == null || admin.Role == null || !admin.Role.ToLower().Contains("admin"))
+            {
+                return StatusCode(403, new { error = "Unauthorized. Only HR Admins can change the system password policy." });
+            }
+
+            var policy = await _context.PasswordPolicies.FirstOrDefaultAsync();
+            if (policy == null)
+            {
+                policy = new PasswordPolicy();
+                _context.PasswordPolicies.Add(policy);
+            }
+
+            policy.MinLength = request.MinLength;
+            policy.MaxLength = request.MaxLength;
+            policy.RequireUpper = request.RequireUpper;
+            policy.RequireLower = request.RequireLower;
+            policy.RequireNumber = request.RequireNumber;
+            policy.RequireSpecial = request.RequireSpecial;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Password policy updated successfully!" });
+        }
+
         [HttpPost("update-profile")]
         public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequest request)
         {
@@ -495,13 +602,34 @@ namespace Ams.Controllers
 
                 // Password Policy check
                 string newPassword = request.NewPassword;
-                if (newPassword.Length < 8 ||
-                    !newPassword.Any(char.IsUpper) ||
-                    !newPassword.Any(char.IsLower) ||
-                    !newPassword.Any(char.IsDigit) ||
-                    !newPassword.Any(ch => !char.IsLetterOrDigit(ch)))
+                var policy = await _context.PasswordPolicies.FirstOrDefaultAsync();
+                if (policy != null)
                 {
-                    return BadRequest(new { error = "Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character." });
+                    if (newPassword.Length < policy.MinLength || newPassword.Length > policy.MaxLength ||
+                        (policy.RequireUpper && !newPassword.Any(char.IsUpper)) ||
+                        (policy.RequireLower && !newPassword.Any(char.IsLower)) ||
+                        (policy.RequireNumber && !newPassword.Any(char.IsDigit)) ||
+                        (policy.RequireSpecial && !newPassword.Any(ch => !char.IsLetterOrDigit(ch))))
+                    {
+                        var requirements = new List<string>();
+                        requirements.Add($"between {policy.MinLength} and {policy.MaxLength} characters");
+                        if (policy.RequireUpper) requirements.Add("an uppercase letter");
+                        if (policy.RequireLower) requirements.Add("a lowercase letter");
+                        if (policy.RequireNumber) requirements.Add("a number");
+                        if (policy.RequireSpecial) requirements.Add("a special character");
+                        return BadRequest(new { error = $"Password does not meet criteria. It must be {string.Join(", ", requirements)}." });
+                    }
+                }
+                else
+                {
+                    if (newPassword.Length < 8 ||
+                        !newPassword.Any(char.IsUpper) ||
+                        !newPassword.Any(char.IsLower) ||
+                        !newPassword.Any(char.IsDigit) ||
+                        !newPassword.Any(ch => !char.IsLetterOrDigit(ch)))
+                    {
+                        return BadRequest(new { error = "Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character." });
+                    }
                 }
 
                 // Password History check (last 3 passwords)
@@ -727,6 +855,7 @@ namespace Ams.Controllers
         {
             var user = await _context.Users.Include(u => u.Shift).FirstOrDefaultAsync(u => u.Id == id);
             if (user == null) return NotFound(new { error = "User not found." });
+            bool isFirstTime = await _context.PasswordHistories.CountAsync(ph => ph.UserId == user.Id) <= 1;
             return Ok(new
             {
                 id = user.Id,
@@ -736,7 +865,8 @@ namespace Ams.Controllers
                 department = user.Department,
                 avatar = user.Avatar,
                 shift = user.Shift,
-                employeeId = user.EmployeeId
+                employeeId = user.EmployeeId,
+                isFirstTime = isFirstTime
             });
         }
 
@@ -978,13 +1108,34 @@ namespace Ams.Controllers
 
             // Password Policy check
             string newPassword = request.NewPassword;
-            if (newPassword.Length < 8 ||
-                !newPassword.Any(char.IsUpper) ||
-                !newPassword.Any(char.IsLower) ||
-                !newPassword.Any(char.IsDigit) ||
-                !newPassword.Any(ch => !char.IsLetterOrDigit(ch)))
+            var policy = await _context.PasswordPolicies.FirstOrDefaultAsync();
+            if (policy != null)
             {
-                return BadRequest(new { error = "Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character." });
+                if (newPassword.Length < policy.MinLength || newPassword.Length > policy.MaxLength ||
+                    (policy.RequireUpper && !newPassword.Any(char.IsUpper)) ||
+                    (policy.RequireLower && !newPassword.Any(char.IsLower)) ||
+                    (policy.RequireNumber && !newPassword.Any(char.IsDigit)) ||
+                    (policy.RequireSpecial && !newPassword.Any(ch => !char.IsLetterOrDigit(ch))))
+                {
+                    var requirements = new List<string>();
+                    requirements.Add($"between {policy.MinLength} and {policy.MaxLength} characters");
+                    if (policy.RequireUpper) requirements.Add("an uppercase letter");
+                    if (policy.RequireLower) requirements.Add("a lowercase letter");
+                    if (policy.RequireNumber) requirements.Add("a number");
+                    if (policy.RequireSpecial) requirements.Add("a special character");
+                    return BadRequest(new { error = $"Password does not meet criteria. It must be {string.Join(", ", requirements)}." });
+                }
+            }
+            else
+            {
+                if (newPassword.Length < 8 ||
+                    !newPassword.Any(char.IsUpper) ||
+                    !newPassword.Any(char.IsLower) ||
+                    !newPassword.Any(char.IsDigit) ||
+                    !newPassword.Any(ch => !char.IsLetterOrDigit(ch)))
+                {
+                    return BadRequest(new { error = "Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character." });
+                }
             }
 
             // Password History check (last 3 passwords)

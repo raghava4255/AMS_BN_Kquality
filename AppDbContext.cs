@@ -17,6 +17,7 @@ namespace Ams
         public DbSet<ShiftRequest> ShiftRequests { get; set; }
         public DbSet<Otp> Otps { get; set; }
         public DbSet<PasswordHistory> PasswordHistories { get; set; }
+        public DbSet<PasswordPolicy> PasswordPolicies { get; set; }
         public DbSet<EmailLog> EmailLogs { get; set; }
         public DbSet<Notification> Notifications { get; set; }
         public DbSet<LeaveType> LeaveTypes { get; set; }
