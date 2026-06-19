@@ -17,6 +17,7 @@ builder.Services.AddHostedService<Ams.Services.EmailRetryService>();
 builder.Services.AddHostedService<Ams.Services.AutomatedReportsService>();
 builder.Services.AddHostedService<Ams.Services.EmailPollingBackgroundService>();
 builder.Services.AddHostedService<Ams.Services.NotificationEmailSenderService>();
+builder.Services.AddHostedService<Ams.Services.ShiftPunchMonitoringService>();
 // Configure CORS policy
 builder.Services.AddCors(options =>
 {

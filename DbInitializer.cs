@@ -48,6 +48,8 @@ namespace Ams
                         ALTER TABLE AttendanceLogs ADD ClockOutLng FLOAT NULL;
                     IF NOT EXISTS (SELECT * FROM sys.columns WHERE Name = N'ClockOutAddress' AND Object_ID = Object_ID(N'AttendanceLogs'))
                         ALTER TABLE AttendanceLogs ADD ClockOutAddress NVARCHAR(MAX) NULL;
+                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE Name = N'MissedPunchEmailSent' AND Object_ID = Object_ID(N'AttendanceLogs'))
+                        ALTER TABLE AttendanceLogs ADD MissedPunchEmailSent BIT NOT NULL DEFAULT 0;
                 END
             ");
 
@@ -237,6 +239,17 @@ namespace Ams
 
             var generalShift = context.Shifts.FirstOrDefault(s => s.Code == "GS-01");
             var nightShift = context.Shifts.FirstOrDefault(s => s.Code == "NS-01");
+
+            // Assign General Shift as default for any existing employee users who don't have any shift assigned yet
+            if (generalShift != null)
+            {
+                context.Database.ExecuteSql($@"
+                    UPDATE Users 
+                    SET ShiftId = {generalShift.Id} 
+                    WHERE ShiftId IS NULL 
+                      AND (Role LIKE '%employee%' OR Role IS NULL OR Role = '');
+                ");
+            }
 
             // Seed Users if none exist
             if (!context.Users.Any())

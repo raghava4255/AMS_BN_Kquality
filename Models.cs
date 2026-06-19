@@ -144,6 +144,7 @@ namespace Ams
         public double OvertimeHours { get; set; } = 0;
         public double BreakDuration { get; set; } = 0; // In hours or minutes, let's keep hours for consistency with `Hours` or we can use the shift's break time.
         public double PendingHours { get; set; } = 0;
+        public bool MissedPunchEmailSent { get; set; } = false;
     }
 
     public class LeaveRequest

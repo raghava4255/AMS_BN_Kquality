@@ -24,6 +24,7 @@ namespace Ams.Controllers
             public string EmployeeId { get; set; } = string.Empty;
             public string Name { get; set; } = string.Empty;
             public string Department { get; set; } = string.Empty;
+            public string Shift { get; set; } = string.Empty;
             public string PunchIn { get; set; } = string.Empty;
             public string PunchOut { get; set; } = string.Empty;
             public string Status { get; set; } = string.Empty;
@@ -37,7 +38,7 @@ namespace Ams.Controllers
                 date = DateTime.Now.ToString("yyyy-MM-dd");
             }
 
-            var activeUsers = await _context.Users.Where(u => u.IsActive).ToListAsync();
+            var activeUsers = await _context.Users.Include(u => u.Shift).Where(u => u.IsActive).ToListAsync();
             var logsForDate = await _context.AttendanceLogs.Where(l => l.Date == date).ToListAsync();
 
             var report = new List<DailyAttendanceReportDto>();
@@ -93,6 +94,7 @@ namespace Ams.Controllers
                     EmployeeId = string.IsNullOrEmpty(user.EmployeeId) ? "N/A" : user.EmployeeId,
                     Name = user.Name ?? "Unknown",
                     Department = string.IsNullOrEmpty(user.Department) ? "Unassigned" : user.Department,
+                    Shift = user.Shift != null ? $"{user.Shift.Name} ({user.Shift.StartTime} - {user.Shift.EndTime})" : "---",
                     PunchIn = punchIn,
                     PunchOut = punchOut,
                     Status = status
