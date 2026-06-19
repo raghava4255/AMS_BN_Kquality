@@ -107,6 +107,45 @@ namespace Ams.Controllers
 
             string todayStr = DateTime.Now.ToString("yyyy-MM-dd");
 
+            // Self-healing: Resolve any unresolved active punches from previous days as Absent
+            var oldActiveLogs = await _context.AttendanceLogs
+                .Where(l => l.UserId == request.UserId && l.Status == "Active" && l.Date != todayStr)
+                .ToListAsync();
+
+            if (oldActiveLogs.Any())
+            {
+                foreach (var oldLog in oldActiveLogs)
+                {
+                    oldLog.Status = "Absent";
+                    oldLog.Hours = 0.0;
+                    oldLog.ClockOut = "---";
+                    user.AbsentDays += 1;
+
+                    var oldLogNotification = new Notification
+                    {
+                        UserId = user.Id,
+                        Title = "Missed Punch-Out Resolved",
+                        Message = $"Your active session on {oldLog.Date} has been resolved as Absent because you did not punch out.",
+                        Type = "danger",
+                        CreatedAt = DateTime.Now
+                    };
+                    _context.Notifications.Add(oldLogNotification);
+                }
+
+                // Recompute attendance rate
+                int totalDays = user.PresentDays + user.AbsentDays;
+                if (totalDays > 0)
+                {
+                    user.AttendanceRate = Math.Round(((double)user.PresentDays / totalDays) * 100.0, 1);
+                }
+                else
+                {
+                    user.AttendanceRate = 100;
+                }
+
+                await _context.SaveChangesAsync();
+            }
+
             // Check if already clocked in today (active, already checked out, or on leave)
             var existingLog = await _context.AttendanceLogs
                 .FirstOrDefaultAsync(l => l.UserId == request.UserId && l.Date == todayStr);
